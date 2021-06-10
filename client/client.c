@@ -25,7 +25,6 @@ int currentDetailNumber = 0;
 //edit window
 char editBuffer[256];
 
-
 //Data
 ListElement toDoRoot;
 ListElement listRoot;
@@ -71,7 +70,7 @@ void* clientReaderThread(){
             currentToDoNumber = 0;
             currentListNumber = 0;
         }
-        refreshListList();
+        refreshList();
         refreshListWindow();
     }
     return NULL;
@@ -118,7 +117,11 @@ void sendRequest(int mode, ToDo toDo){
 
 void refreshListWindow(){
     wclear(windows[0]);
-    currentWindow == 0 ? box(windows[0], '|', '-') : box(windows[0], 0, 0);
+    if(currentWindow == 0){
+        box(windows[0], '|', '-');  
+    }else{
+        box(windows[0], 0, 0);
+    } 
     wprintw(windows[0], titles[0]);
     int counter = 0;
     ListElement* item = listRoot.next;

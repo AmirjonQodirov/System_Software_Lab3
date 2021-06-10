@@ -64,7 +64,9 @@ void * serverReaderThread(void * voidParams) {
   }
 
   serverNumConnections++;
+  printf("\033[0;32m");
   printf("Server accepted the client. Username is %s. Now %i connections\n", user, serverNumConnections);
+  printf("\033[0m");
   
   pthread_t writer;
   struct WriterThreadData data;
@@ -75,10 +77,8 @@ void * serverReaderThread(void * voidParams) {
   pthread_mutex_unlock( & serverBufferLock);
 
   while (recv(sockfd, & pakage, sizeof(ToDoPakage), 0) > 0) {
-    printf("From client:\n\t Title : %s", pakage.toDo.title);
-    printf("\t Description: %s", pakage.toDo.description);
-    struct tm tm = * localtime( & pakage.toDo.creation_time);
-    printf("\t Created: %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    printf("From client processing pakage with Todo's title:\t Title : %s", pakage.toDo.title);
+    
     strcpy(pakage.toDo.user, user);
     if (pakage.mode == ADD_MODE) {
       pakage.toDo.creation_time = time(NULL);
@@ -96,7 +96,9 @@ void * serverReaderThread(void * voidParams) {
   data.endFlag = 1;
   pthread_mutex_lock( & serverBufferLock);
   serverNumConnections--;
+  printf("\033[0;31m");
   printf("User %s disconnected. Now %i connections\n", user, serverNumConnections);
+  printf("\033[0m");
   pthread_cancel(writer);
   pthread_mutex_unlock( & serverBufferLock);
   return NULL;
