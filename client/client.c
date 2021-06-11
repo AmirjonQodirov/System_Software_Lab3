@@ -4,36 +4,116 @@
 int endFlagClient = 0;
 int clientSocketFD;
 
-//GUI variables
+//windows
 WINDOW *windows[4];
-char* titles[4] = {"Lists", "ToDos", "Details", "Edit"};
+char* titles[4] = {"Lists", "ToDo's", "ToDo Details", "Edit Area"};
 int currentWindow = 0;
 
-//list window
+//window[0]
 int currentListNumber = 0;
 int totalLists = 0;
 ToDo currentList;
 
-//todo window
+//window[1]
 int currentToDoNumber = 0;
 int totalToDos = 0;
 ToDo currentToDo;
 
-//details window
+//window[2]
 int currentDetailNumber = 0;
 
-//edit window
 char editBuffer[256];
 
-//Data
 ListElement toDoRoot;
 ListElement listRoot;
 
-//Functions
-void refreshEditWindow();
-void refreshListWindow();
-void refreshToDoWindow();
-void refreshDetailsWindow();
+void refWindows(int win){
+    wclear(windows[win]);
+    currentWindow == win ? box(windows[win], '|', '-') : box(windows[win], 0, 0);
+    wprintw(windows[win], titles[win]);
+    if(win == 0){
+        int counter = 0;
+        ListElement* item = listRoot.next;
+        while (item != NULL){
+            if(counter == currentListNumber){
+                mvwprintw(windows[0], counter+2, 1, ">");
+                currentList = item->toDo;
+            }
+            mvwprintw(windows[0], counter+2, 2, item->toDo.list);
+            item = item->next;
+            counter++;
+        }
+        totalLists = counter - 1;
+        wrefresh(windows[0]);
+        refWindows(1);
+    }else if(win == 1){
+        int counter = 0;
+        currentToDo.id = -1;
+        ListElement* item = toDoRoot.next;
+        while (item != NULL){
+            if(strcmp(item->toDo.list, currentList.list) == 0){
+                if(counter == currentToDoNumber){
+                    mvwprintw(windows[1], counter+2, 1, ">");
+                    currentToDo = item->toDo;
+                }
+                mvwprintw(windows[1], counter+2, 2, item->toDo.title);
+                counter++;
+            }
+            item = item->next;
+        }
+        totalToDos = counter;
+        wrefresh(windows[1]);
+        refWindows(2);
+    }else if(win == 2){
+        struct tm tm;
+        char buff[32];
+        if(currentToDo.id != -1){
+            mvwprintw(windows[2], 2, 2, "Title:");
+            mvwprintw(windows[2], 2, 15, currentToDo.title);
+
+            mvwprintw(windows[2], 3, 2, "ToDo list:");
+            mvwprintw(windows[2], 3, 15, currentToDo.list);
+
+            mvwprintw(windows[2], 4, 2, "Description:");
+            mvwprintw(windows[2], 4, 15, currentToDo.description);
+
+            tm = *localtime(&currentToDo.creation_time);
+            sprintf(buff, "Created:     %d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+            mvwprintw(windows[2], 5, 2, buff);
+
+            if(currentToDo.deadline_in_day != 0){
+                sprintf(buff, "Deadline:    %d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday+currentToDo.deadline_in_day, tm.tm_hour, tm.tm_min, tm.tm_sec);
+                mvwprintw(windows[2], 6, 2, buff);
+            } else{
+                mvwprintw(windows[2], 6, 2, "Deadline:    -");
+            }
+
+            if(currentDetailNumber==3){
+                mvwprintw(windows[2], currentDetailNumber + 3, 1, ">");
+            }else{
+                mvwprintw(windows[2], currentDetailNumber + 2, 1, ">");
+            }
+
+            if(currentDetailNumber == 0){
+                strcpy(editBuffer, currentToDo.title);
+            }
+            if(currentDetailNumber == 1){
+                strcpy(editBuffer, currentToDo.list);
+            }
+            if(currentDetailNumber == 2){
+                strcpy(editBuffer, currentToDo.description);
+            }
+            if(currentDetailNumber == 3){
+                sprintf(editBuffer, "%d", currentToDo.deadline_in_day);
+            }
+        }
+        wrefresh(windows[2]);
+        refWindows(3);
+    }else{
+        mvwprintw(windows[3], 2, 2, editBuffer);
+        wrefresh(windows[3]);
+    }
+}
 
 void refreshList(){
     ListElement *currentItem = &listRoot;
@@ -60,7 +140,7 @@ void refreshList(){
     }
 }
 
-void* clientReaderThread(){
+void* serverListener(){
     ToDoPakage toDoPackage;
     while (!endFlagClient){
         read(clientSocketFD, &toDoPackage, sizeof(ToDoPakage));
@@ -71,7 +151,7 @@ void* clientReaderThread(){
             currentListNumber = 0;
         }
         refreshList();
-        refreshListWindow();
+        refWindows(0);
     }
     return NULL;
 }
@@ -98,7 +178,7 @@ void setUpSocket(char* username, char* host){
     }
 
     pthread_t receiver;
-    pthread_create(&receiver, NULL, clientReaderThread, NULL);
+    pthread_create(&receiver, NULL, serverListener, NULL);
     
     ToDoPakage toDoPackage;
 
@@ -115,112 +195,6 @@ void sendRequest(int mode, ToDo toDo){
     write(clientSocketFD, &toDoPackage, sizeof(ToDoPakage));
 }
 
-void refreshListWindow(){
-    wclear(windows[0]);
-    if(currentWindow == 0){
-        box(windows[0], '|', '-');  
-    }else{
-        box(windows[0], 0, 0);
-    } 
-    wprintw(windows[0], titles[0]);
-    int counter = 0;
-    ListElement* item = listRoot.next;
-    while (item != NULL){
-        if(counter == currentListNumber){
-            mvwprintw(windows[0], counter+2, 1, ">");
-            currentList = item->toDo;
-        }
-        mvwprintw(windows[0], counter+2, 2, item->toDo.list);
-        item = item->next;
-        counter++;
-    }
-    totalLists = counter - 1;
-    wrefresh(windows[0]);
-    refreshToDoWindow();
-}
-
-void refreshToDoWindow(){
-    wclear(windows[1]);
-    currentWindow == 1 ? box(windows[1], '|', '-') : box(windows[1], 0, 0);
-    wprintw(windows[1], titles[1]);
-    int counter = 0;
-    currentToDo.id = -1;
-    ListElement* item = toDoRoot.next;
-    while (item != NULL){
-        if(strcmp(item->toDo.list, currentList.list) == 0){
-            if(counter == currentToDoNumber){
-                mvwprintw(windows[1], counter+2, 1, ">");
-                currentToDo = item->toDo;
-            }
-            mvwprintw(windows[1], counter+2, 2, item->toDo.title);
-            counter++;
-        }
-        item = item->next;
-    }
-    totalToDos = counter;
-    wrefresh(windows[1]);
-    refreshDetailsWindow();
-}
-
-void refreshDetailsWindow(){
-    wclear(windows[2]);
-    currentWindow == 2 ? box(windows[2], '|', '-') : box(windows[2], 0, 0);
-    wprintw(windows[2], titles[2]);
-    struct tm tm;
-    char buff[32];
-    if(currentToDo.id != -1){
-        mvwprintw(windows[2], 2, 2, "Title:");
-        mvwprintw(windows[2], 2, 15, currentToDo.title);
-
-        mvwprintw(windows[2], 3, 2, "ToDo list:");
-        mvwprintw(windows[2], 3, 15, currentToDo.list);
-
-        mvwprintw(windows[2], 4, 2, "Description:");
-        mvwprintw(windows[2], 4, 15, currentToDo.description);
-
-        tm = *localtime(&currentToDo.creation_time);
-        sprintf(buff, "Created:     %d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        mvwprintw(windows[2], 5, 2, buff);
-
-        if(currentToDo.deadline_in_day != 0){
-            sprintf(buff, "Deadline:    %d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday+currentToDo.deadline_in_day, tm.tm_hour, tm.tm_min, tm.tm_sec);
-            mvwprintw(windows[2], 6, 2, buff);
-        } else{
-            mvwprintw(windows[2], 6, 2, "Deadline:    -");
-        }
-
-        if(currentDetailNumber==3){
-            mvwprintw(windows[2], currentDetailNumber + 3, 1, ">");
-        }else{
-            mvwprintw(windows[2], currentDetailNumber + 2, 1, ">");
-        }
-
-        if(currentDetailNumber == 0){
-            strcpy(editBuffer, currentToDo.title);
-        }
-        if(currentDetailNumber == 1){
-            strcpy(editBuffer, currentToDo.list);
-        }
-        if(currentDetailNumber == 2){
-            strcpy(editBuffer, currentToDo.description);
-        }
-        if(currentDetailNumber == 3){
-            sprintf(editBuffer, "%d", currentToDo.deadline_in_day);
-        }
-    }
-    wrefresh(windows[2]);
-    refreshEditWindow();
-}
-
-void refreshEditWindow(){
-    wclear(windows[3]);
-    currentWindow == 3 ? box(windows[3], '*', '*') : box(windows[3], 0, 0);
-    wprintw(windows[3], titles[3]);
-    mvwprintw(windows[3], 2, 2, editBuffer);
-    wrefresh(windows[3]);
-}
-
-
 int startClientMode(char* username, char* host){
 
     toDoRoot.next = NULL;
@@ -228,8 +202,8 @@ int startClientMode(char* username, char* host){
 
     setUpSocket(username, host);
 
-    const int width = 21;
-    const int height = 7;
+    const int width = 32;
+    const int height = 8;
 
     initscr();
     noecho();
@@ -241,17 +215,22 @@ int startClientMode(char* username, char* host){
     windows[1] = newwin(LINES - height, width, 0, width);
     windows[2] = newwin(LINES - height, COLS - width * 2, 0, width * 2);
     windows[3] = newwin(height, COLS, LINES - height, 0);
-    refreshListWindow();
+    refWindows(0);
 
     while (!endFlagClient){
         char c = getch();
+        //esc
         if(c == 27){
-            endFlagClient = 1;
+            char x = getch();
+            if(x != '['){
+                endFlagClient = 1;
+            }
         }
         else if(c == 127 && currentWindow == 3){
             editBuffer[strlen(editBuffer)-1] = '\0';
-            refreshEditWindow();
+            refWindows(3);
         }
+        //enter
         else if(c == 10){
             if (currentWindow == 2){
                 if(currentToDo.id >= 0){
@@ -274,47 +253,50 @@ int startClientMode(char* username, char* host){
                     currentToDo.deadline_in_day = atoi(editBuffer);
                 }
                 currentWindow = 2;
-                refreshDetailsWindow();
+                refWindows(2);
             }
         }
-        else if(/*tab*/c == 9){
+        //tab
+        else if(c == 9){
             currentWindow = (currentWindow + 1) % (currentToDo.id == -1 ? 2 : 4);
             if(currentWindow == 3){
-                refreshDetailsWindow();
+                refWindows(2);
             } else{
-                refreshListWindow();
+                refWindows(0);
             }
         }
         else if (currentWindow == 3){
             strncat(editBuffer, &c, 1);
-            refreshEditWindow();
+            refWindows(3);
         }
-        else if(c == 'w' || c == 'W'){
+        // w | W | arrow_up
+        else if(c == 'w' || c == 'W' || c == 'A'){            
             if(currentWindow == 0){
                 currentListNumber = currentListNumber == 0 ? totalLists - 1: currentListNumber - 1;
-                refreshListWindow();
+                refWindows(0);
             }
             if(currentWindow == 1){
                 currentToDoNumber = currentToDoNumber == 0 ? totalToDos - 1: currentToDoNumber - 1;
-                refreshToDoWindow();
+                refWindows(1);                
             }
             if(currentWindow == 2){
                 currentDetailNumber = currentDetailNumber == 0 ? 3 : currentDetailNumber - 1;
-                refreshDetailsWindow();
+                refWindows(2);
             }
         }
-        else if(c == 's' || c == 'S'){
+        // s | S | arrow_down
+        else if(c == 's' || c == 'S' || c == 'B'){
             if(currentWindow == 0){
                 currentListNumber = (currentListNumber + 1) % totalLists;
-                refreshListWindow();
+                refWindows(0);
             }
             if(currentWindow == 1){
                 currentToDoNumber = (currentToDoNumber + 1) % totalToDos;
-                refreshToDoWindow();
+                refWindows(1);                
             }
             if(currentWindow == 2){
                 currentDetailNumber = (currentDetailNumber + 1) % 4;
-                refreshDetailsWindow();
+                refWindows(2);
             }
         }
         else if(c == 'd' || c == 'D'){
@@ -333,9 +315,9 @@ int startClientMode(char* username, char* host){
             currentToDo.creation_time = time(NULL);
             currentToDo.deadline_in_day = 0;
             currentWindow = 2;
-            refreshDetailsWindow();
+            refWindows(2);
         }else{
-
+            refWindows(0);
         }
     }
     endwin();

@@ -19,7 +19,7 @@ struct WriterThreadData {
   int endFlag;
 };
 
-void * serverWriterThread(void * voidParams) {
+void * clientSender(void * voidParams) {
   pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
   struct WriterThreadData * threadData = (struct WriterThreadData * ) voidParams;
 
@@ -38,7 +38,7 @@ void * serverWriterThread(void * voidParams) {
   return NULL;
 }
 
-void * serverReaderThread(void * voidParams) {
+void * serverProcessingThread(void * voidParams) {
   int sockfd = * (int * ) voidParams;
   ToDoPakage pakage;
   pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -66,19 +66,18 @@ void * serverReaderThread(void * voidParams) {
   serverNumConnections++;
   printf("\033[0;32m");
   printf("Server accepted the client. Username is %s. Now %i connections\n", user, serverNumConnections);
-  printf("\033[0m");
+  printf("\033[0m\n");
   
-  pthread_t writer;
+  pthread_t clientSendr;
   struct WriterThreadData data;
   data.fd = sockfd;
   data.endFlag = 0;
   strcpy(data.user, user);
-  pthread_create( & writer, NULL, serverWriterThread, & data);
+  pthread_create( & clientSendr, NULL, clientSender, & data);
   pthread_mutex_unlock( & serverBufferLock);
 
   while (recv(sockfd, & pakage, sizeof(ToDoPakage), 0) > 0) {
-    printf("From client processing pakage with Todo's title:\t Title : %s", pakage.toDo.title);
-    
+    printf("From client: %s --- processing pakage with Todo's title: %s\n",user, pakage.toDo.title);
     strcpy(pakage.toDo.user, user);
     if (pakage.mode == ADD_MODE) {
       pakage.toDo.creation_time = time(NULL);
@@ -98,8 +97,8 @@ void * serverReaderThread(void * voidParams) {
   serverNumConnections--;
   printf("\033[0;31m");
   printf("User %s disconnected. Now %i connections\n", user, serverNumConnections);
-  printf("\033[0m");
-  pthread_cancel(writer);
+  printf("\033[0m\n");
+  pthread_cancel(clientSendr);
   pthread_mutex_unlock( & serverBufferLock);
   return NULL;
 }
@@ -149,8 +148,8 @@ void * mainThread(void * voidParams) {
       printf("server acccept failed...\n");
       return NULL;
     } else {
-      pthread_t clientReader;
-      pthread_create( & clientReader, NULL, serverReaderThread, (void * ) & connfd);
+      pthread_t clientThread;
+      pthread_create( & clientThread, NULL, serverProcessingThread, (void * ) & connfd);
     }
   }
 
